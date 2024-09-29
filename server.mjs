@@ -4,11 +4,15 @@ import fetch from 'node-fetch';
 import axios from 'axios'; // Add this line
 import User from './models/User.mjs';
 import connectDB from './db.mjs';
+import { validateUser } from './middleware/validate.mjs';
+import { auth } from './middleware/auth.mjs'; // Add this line
+import { errorHandler } from './middleware/errorHandler.mjs';
 
-console.log('MONGODB_URI:', process.env.MONGODB_URI);
+// Remove this line as it's not needed anymore
+// console.log('MONGODB_URI:', process.env.MONGODB_URI);
 
 const app = express();
-const port = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Serve static files from the "public" directory
 app.use(express.static('public'));
@@ -75,32 +79,89 @@ app.post('/api/generate-image', async (req, res) => {
 });
 
 // New user endpoint
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', validateUser, async (req, res) => {
     try {
-        const { name, email } = req.body;
-        const user = new User({ name, email });
+        const user = new User(req.body);
         await user.save();
         res.status(201).json(user);
     } catch (error) {
-        res.status(400).json({ error: error.message });
+        console.error('Error adding user:', error);
+        res.status(400).json({ message: error.message });
     }
 });
 
-// New user list endpoint
+// New user list endpoint with pagination, sorting, and searching
 app.get('/api/users', async (req, res) => {
     try {
-        const users = await User.find();
-        res.json(users);
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const sort = req.query.sort || 'createdAt';
+        const order = req.query.order === 'asc' ? 1 : -1;
+        const search = req.query.search || '';
+
+        const query = search
+            ? { $or: [
+                { name: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } }
+              ]}
+            : {};
+
+        const users = await User.find(query)
+            .sort({ [sort]: order })
+            .skip((page - 1) * limit)
+            .limit(limit);
+
+        const total = await User.countDocuments(query);
+
+        res.json({
+            users,
+            currentPage: page,
+            totalPages: Math.ceil(total / limit),
+            totalUsers: total
+        });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// Get a single user
+app.get('/api/users/:id', async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// Update a user
+app.put('/api/users/:id', async (req, res) => {
+    try {
+        const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        res.json(user);
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+});
+
+// Delete a user
+app.delete('/api/users/:id', async (req, res) => {
+    try {
+        const user = await User.findByIdAndDelete(req.params.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        res.json({ message: 'User deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 });
 
 // Connect to MongoDB before starting the server
 connectDB()
   .then(() => {
-    app.listen(port, () => {
-      console.log(`Server running at http://localhost:${port}`);
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
     });
   })
   .catch((error) => {
@@ -112,3 +173,11 @@ connectDB()
 app.get('/database', (req, res) => {
     res.sendFile('database.html', { root: './public' });
 });
+
+// Protected route example
+app.get('/api/protected', auth, (req, res) => {
+    res.json({ message: 'This is a protected route' });
+});
+
+// Move the error handler middleware to the very end
+app.use(errorHandler);

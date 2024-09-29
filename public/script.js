@@ -32,3 +32,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+function validateForm() {
+    const name = document.getElementById('name').value;
+    const email = document.getElementById('email').value;
+    let isValid = true;
+
+    if (name.trim() === '') {
+        alert('Name is required');
+        isValid = false;
+    }
+
+    if (email.trim() === '') {
+        alert('Email is required');
+        isValid = false;
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+        alert('Email is invalid');
+        isValid = false;
+    }
+
+    return isValid;
+}
+
+if (form) {
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (validateForm()) {
+            // Proceed with form submission
+            // ... existing code ...
+        }
+    });
+}

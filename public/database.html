@@ -38,6 +38,50 @@
         button:hover {
             background-color: #45a049;
         }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .pagination button {
+            margin: 0 5px;
+        }
+        .search-container {
+            margin-bottom: 20px;
+        }
+        .error-message {
+            color: red;
+            margin-top: 10px;
+        }
+        .success-message {
+            color: green;
+            margin-top: 10px;
+        }
+        @media (max-width: 600px) {
+            table, tr, td {
+                display: block;
+            }
+            th {
+                display: none;
+            }
+            tr {
+                margin-bottom: 10px;
+            }
+            td {
+                border: none;
+                position: relative;
+                padding-left: 50%;
+            }
+            td:before {
+                content: attr(data-label);
+                position: absolute;
+                left: 6px;
+                width: 45%;
+                padding-right: 10px;
+                white-space: nowrap;
+                font-weight: bold;
+            }
+        }
     </style>
 </head>
 <body>
@@ -50,41 +94,62 @@
             <input type="email" id="email" placeholder="Email" required>
             <button type="submit">Add User</button>
         </form>
+        <div id="message"></div>
 
         <h2>User List</h2>
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Search users...">
+            <button onclick="searchUsers()">Search</button>
+        </div>
         <table id="userTable">
             <thead>
                 <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Created At</th>
+                    <th onclick="sortUsers('name')">Name</th>
+                    <th onclick="sortUsers('email')">Email</th>
+                    <th onclick="sortUsers('createdAt')">Created At</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="userTableBody">
             </tbody>
         </table>
+        <div class="pagination" id="pagination"></div>
     </section>
 
     <script>
+        let currentPage = 1;
+        let totalPages = 1;
+        let currentSort = { field: 'createdAt', order: 'desc' };
+        let searchTerm = '';
+
         // Function to fetch and display users
-        async function fetchUsers() {
+        async function fetchUsers(page = 1, limit = 10) {
             try {
-                const response = await fetch('/api/users');
-                const users = await response.json();
+                const response = await fetch(`/api/users?page=${page}&limit=${limit}&sort=${currentSort.field}&order=${currentSort.order}&search=${searchTerm}`);
+                const data = await response.json();
+                const users = data.users;
+                currentPage = data.currentPage;
+                totalPages = data.totalPages;
                 const tableBody = document.getElementById('userTableBody');
                 tableBody.innerHTML = '';
                 users.forEach(user => {
                     const row = `
                         <tr>
-                            <td>${user.name}</td>
-                            <td>${user.email}</td>
-                            <td>${new Date(user.createdAt).toLocaleString()}</td>
+                            <td data-label="Name">${user.name}</td>
+                            <td data-label="Email">${user.email}</td>
+                            <td data-label="Created At">${new Date(user.createdAt).toLocaleString()}</td>
+                            <td data-label="Actions">
+                                <button onclick="editUser('${user._id}', this)">Edit</button>
+                                <button onclick="deleteUser('${user._id}')">Delete</button>
+                            </td>
                         </tr>
                     `;
                     tableBody.innerHTML += row;
                 });
+                updatePagination();
             } catch (error) {
                 console.error('Error fetching users:', error);
+                showMessage('Error fetching users. Please try again.', 'error');
             }
         }
 
@@ -93,6 +158,11 @@
             event.preventDefault();
             const name = document.getElementById('name').value;
             const email = document.getElementById('email').value;
+            
+            if (!validateForm()) {
+                return;
+            }
+
             try {
                 const response = await fetch('/api/users', {
                     method: 'POST',
@@ -104,12 +174,126 @@
                 if (response.ok) {
                     document.getElementById('addUserForm').reset();
                     fetchUsers();
+                    showMessage('User added successfully', 'success');
                 } else {
-                    console.error('Error adding user:', await response.text());
+                    const errorData = await response.json();
+                    showMessage(`Error adding user: ${errorData.message}`, 'error');
                 }
             } catch (error) {
                 console.error('Error adding user:', error);
+                showMessage('Error adding user. Please try again.', 'error');
             }
+        }
+
+        // Function to update a user
+        async function updateUser(id, name, email) {
+            try {
+                const response = await fetch(`/api/users/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ name, email }),
+                });
+                if (response.ok) {
+                    fetchUsers(currentPage);
+                    showMessage('User updated successfully', 'success');
+                } else {
+                    const errorData = await response.json();
+                    showMessage(`Error updating user: ${errorData.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error updating user:', error);
+                showMessage('Error updating user. Please try again.', 'error');
+            }
+        }
+
+        // Function to delete a user
+        async function deleteUser(id) {
+            if (confirm('Are you sure you want to delete this user?')) {
+                try {
+                    const response = await fetch(`/api/users/${id}`, {
+                        method: 'DELETE',
+                    });
+                    if (response.ok) {
+                        fetchUsers(currentPage);
+                        showMessage('User deleted successfully', 'success');
+                    } else {
+                        const errorData = await response.json();
+                        showMessage(`Error deleting user: ${errorData.message}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('Error deleting user:', error);
+                    showMessage('Error deleting user. Please try again.', 'error');
+                }
+            }
+        }
+
+        // Function to edit user in-place
+        function editUser(id, button) {
+            const row = button.closest('tr');
+            const nameCell = row.cells[0];
+            const emailCell = row.cells[1];
+            const name = nameCell.textContent;
+            const email = emailCell.textContent;
+
+            nameCell.innerHTML = `<input type="text" value="${name}">`;
+            emailCell.innerHTML = `<input type="email" value="${email}">`;
+            button.textContent = 'Save';
+            button.onclick = function() { saveUser(id, this); };
+        }
+
+        // Function to save edited user
+        function saveUser(id, button) {
+            const row = button.closest('tr');
+            const name = row.cells[0].querySelector('input').value;
+            const email = row.cells[1].querySelector('input').value;
+            updateUser(id, name, email);
+            button.textContent = 'Edit';
+            button.onclick = function() { editUser(id, this); };
+        }
+
+        // Function to update pagination
+        function updatePagination() {
+            const paginationDiv = document.getElementById('pagination');
+            paginationDiv.innerHTML = '';
+            for (let i = 1; i <= totalPages; i++) {
+                const button = document.createElement('button');
+                button.textContent = i;
+                button.onclick = () => fetchUsers(i);
+                if (i === currentPage) {
+                    button.disabled = true;
+                }
+                paginationDiv.appendChild(button);
+            }
+        }
+
+        // Function to sort users
+        function sortUsers(field) {
+            if (currentSort.field === field) {
+                currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.field = field;
+                currentSort.order = 'asc';
+            }
+            fetchUsers();
+        }
+
+        // Function to search users
+        function searchUsers() {
+            searchTerm = document.getElementById('searchInput').value;
+            fetchUsers();
+        }
+
+        // Function to show messages
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = message;
+            messageDiv.className = type === 'error' ? 'error-message' : 'success-message';
+            setTimeout(() => {
+                messageDiv.textContent = '';
+                messageDiv.className = '';
+            }, 3000);
         }
 
         // Add event listener for form submission
@@ -117,6 +301,28 @@
 
         // Fetch users when the page loads
         fetchUsers();
+
+        // Add this function
+        function validateForm() {
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            let isValid = true;
+
+            if (name.trim() === '') {
+                showMessage('Name is required', 'error');
+                isValid = false;
+            }
+
+            if (email.trim() === '') {
+                showMessage('Email is required', 'error');
+                isValid = false;
+            } else if (!/\S+@\S+\.\S+/.test(email)) {
+                showMessage('Email is invalid', 'error');
+                isValid = false;
+            }
+
+            return isValid;
+        }
     </script>
 </body>
 </html>
