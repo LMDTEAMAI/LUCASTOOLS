@@ -12,7 +12,7 @@ app.use(express.static('public'));
 app.use(express.json());
 
 app.post('/api/openai', async (req, res) => {
-    const messages = req.body.messages;
+    const userInput = req.body.prompt;
     try {
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -22,7 +22,7 @@ app.post('/api/openai', async (req, res) => {
             },
             body: JSON.stringify({
                 model: 'gpt-4', // Specify the model
-                messages: messages,
+                messages: [{ role: 'user', content: userInput }],
                 max_tokens: 150
             })
         });
