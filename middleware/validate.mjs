@@ -10,7 +10,8 @@ const userSchema = Joi.object({
   occupation: Joi.string(),
   education: Joi.string(),
   hobbies: Joi.array().items(Joi.string()),
-  favoriteColor: Joi.string()
+  favoriteColor: Joi.string(),
+  gender: Joi.string().valid('Male', 'Female', 'Other', 'Prefer not to say'), // Add this line
 });
 
 export const validateUser = (req, res, next) => {

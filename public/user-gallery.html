@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Gallery</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="load-nav.js"></script>
+    <style>
+        .user-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .user-card {
+            border: 1px solid #ddd;
+            padding: 10px;
+            width: 200px;
+            cursor: pointer;
+        }
+        .user-card:hover {
+            background-color: #f0f0f0;
+        }
+        #imagePrompt {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+        #generatedImage {
+            max-width: 100%;
+            margin-top: 20px;
+        }
+        .loading {
+            display: none;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>User Gallery</h1>
+    <div id="userList" class="user-list"></div>
+    <div id="imagePrompt"></div>
+    <div class="loading" id="loadingIndicator">Generating image...</div>
+    <img id="generatedImage" src="" alt="Generated user image">
+
+    <script>
+        async function fetchUsers() {
+            try {
+                const response = await fetch('/api/users');
+                const data = await response.json();
+                displayUsers(data.users);
+            } catch (error) {
+                console.error('Error fetching users:', error);
+            }
+        }
+
+        function displayUsers(users) {
+            const userList = document.getElementById('userList');
+            userList.innerHTML = '';
+            users.forEach(user => {
+                const userCard = document.createElement('div');
+                userCard.className = 'user-card';
+                userCard.textContent = user.name;
+                userCard.onclick = () => generateImagePrompt(user);
+                userList.appendChild(userCard);
+            });
+        }
+
+        async function generateImagePrompt(user) {
+            const promptDiv = document.getElementById('imagePrompt');
+            const prompt = `Create a high-quality, photorealistic portrait of a person with these characteristics:
+                - Gender: ${user.gender || 'Unspecified'}
+                - Age: ${user.age || 'Adult'}
+                - Height: ${user.height ? (user.height > 180 ? 'Tall' : user.height < 160 ? 'Short' : 'Average height') : 'Average height'}
+                - Build: ${user.weight ? (user.weight > 80 ? 'Heavy build' : user.weight < 60 ? 'Slim build' : 'Average build') : 'Average build'}
+                - Nationality/Ethnicity: ${user.nationality || 'Diverse background'}
+                - Occupation: ${user.occupation || 'Professional'}
+                
+                The person should be dressed appropriately for their occupation: ${user.occupation || 'casual professional attire'}.
+                They should be in a setting related to their job or one of their hobbies: ${user.hobbies && user.hobbies.length ? user.hobbies[0] : 'a neutral office or home environment'}.
+                The image should have a color scheme that incorporates their favorite color: ${user.favoriteColor || 'neutral tones'}.
+                
+                Ensure the image is high resolution, with realistic lighting, and a natural pose. The background should be slightly out of focus to emphasize the person.`;
+
+            promptDiv.textContent = prompt;
+            await generateImage(prompt);
+        }
+
+        async function generateImage(prompt) {
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const generatedImage = document.getElementById('generatedImage');
+
+            loadingIndicator.style.display = 'block';
+            generatedImage.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/generate-image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ prompt }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    generatedImage.src = data.imageUrl;
+                    generatedImage.style.display = 'block';
+                } else {
+                    console.error('Error generating image:', await response.text());
+                }
+            } catch (error) {
+                console.error('Error generating image:', error);
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        fetchUsers();
+    </script>
+</body>
+</html>

@@ -6,18 +6,84 @@
     <title>Image Generator</title>
     <link rel="stylesheet" href="styles.css">
     <script src="load-nav.js"></script>
+    <style>
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        select, input[type="text"] {
+            width: 100%;
+            padding: 5px;
+        }
+        #image-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        #image-container img {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
 </head>
 <body>
     <section>
         <h1>Image Generator</h1>
         <form id="image-generator-form">
-            <label for="prompt-input">Enter image description:</label>
-            <input type="text" id="prompt-input" name="prompt-input" required>
+            <div class="form-group">
+                <label for="prompt-input">Enter image description:</label>
+                <input type="text" id="prompt-input" name="prompt-input" required>
+            </div>
+            <div class="form-group">
+                <label for="subject-select">Subject:</label>
+                <select id="subject-select" name="subject-select">
+                    <option value="">Select a subject</option>
+                    <option value="person">Person</option>
+                    <option value="animal">Animal</option>
+                    <option value="landscape">Landscape</option>
+                    <option value="object">Object</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="art-style-select">Art Style:</label>
+                <select id="art-style-select" name="art-style-select">
+                    <option value="">Select an art style</option>
+                    <option value="realistic">Realistic</option>
+                    <option value="cartoon">Cartoon</option>
+                    <option value="abstract">Abstract</option>
+                    <option value="impressionist">Impressionist</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="mood-select">Mood:</label>
+                <select id="mood-select" name="mood-select">
+                    <option value="">Select a mood</option>
+                    <option value="happy">Happy</option>
+                    <option value="sad">Sad</option>
+                    <option value="mysterious">Mysterious</option>
+                    <option value="energetic">Energetic</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="quality-select">Image Quality:</label>
+                <select id="quality-select" name="quality-select">
+                    <option value="standard">Standard</option>
+                    <option value="hd" selected>HD</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="dalle-style-select">DALL-E Style:</label>
+                <select id="dalle-style-select" name="dalle-style-select">
+                    <option value="vivid">Vivid</option>
+                    <option value="natural" selected>Natural</option>
+                </select>
+            </div>
             <button type="submit">Generate Image</button>
         </form>
-        <div id="image-container">
-            <img id="generated-image" src="" alt="Generated image will appear here" style="display: none; max-width: 100%;">
-        </div>
+        <div id="image-container"></div>
         <div id="error-message" style="color: red;"></div>
     </section>
 
@@ -25,21 +91,35 @@
     document.addEventListener('DOMContentLoaded', () => {
         const form = document.getElementById('image-generator-form');
         const promptInput = document.getElementById('prompt-input');
-        const generatedImage = document.getElementById('generated-image');
+        const subjectSelect = document.getElementById('subject-select');
+        const artStyleSelect = document.getElementById('art-style-select');
+        const moodSelect = document.getElementById('mood-select');
+        const qualitySelect = document.getElementById('quality-select');
+        const dalleStyleSelect = document.getElementById('dalle-style-select');
+        const imageContainer = document.getElementById('image-container');
         const errorMessage = document.getElementById('error-message');
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             errorMessage.textContent = '';
-            generatedImage.style.display = 'none';
+            imageContainer.innerHTML = '';
             
+            const subject = subjectSelect.value ? `${subjectSelect.value} ` : '';
+            const artStyle = artStyleSelect.value ? `in ${artStyleSelect.value} style ` : '';
+            const mood = moodSelect.value ? `with a ${moodSelect.value} mood ` : '';
+            const fullPrompt = `${subject}${artStyle}${mood}${promptInput.value}`;
+
             try {
                 const response = await fetch('/api/generate-image', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ prompt: promptInput.value })
+                    body: JSON.stringify({
+                        prompt: fullPrompt,
+                        quality: qualitySelect.value,
+                        style: dalleStyleSelect.value
+                    })
                 });
 
                 if (!response.ok) {
@@ -48,8 +128,10 @@
 
                 const data = await response.json();
                 if (data.imageUrl) {
-                    generatedImage.src = data.imageUrl;
-                    generatedImage.style.display = 'block';
+                    const img = document.createElement('img');
+                    img.src = data.imageUrl;
+                    img.alt = 'Generated image';
+                    imageContainer.appendChild(img);
                 } else {
                     throw new Error('No image URL received');
                 }

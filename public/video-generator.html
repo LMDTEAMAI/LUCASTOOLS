@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Generator</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="load-nav.js"></script>
+    <style>
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        select, input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 5px;
+        }
+        #video-container {
+            margin-top: 20px;
+        }
+        #error-message {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <section>
+        <h1>Video Generator</h1>
+        <form id="video-generator-form">
+            <div class="form-group">
+                <label for="prompt-input">Enter video description:</label>
+                <input type="text" id="prompt-input" name="prompt-input" required>
+            </div>
+            <div class="form-group">
+                <label for="duration-input">Video Duration (in seconds):</label>
+                <input type="number" id="duration-input" name="duration-input" min="1" max="60" value="15" required>
+            </div>
+            <button type="submit">Generate Video</button>
+        </form>
+        <div id="video-container"></div>
+        <div id="error-message"></div>
+    </section>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const form = document.getElementById('video-generator-form');
+        const promptInput = document.getElementById('prompt-input');
+        const durationInput = document.getElementById('duration-input');
+        const videoContainer = document.getElementById('video-container');
+        const errorMessage = document.getElementById('error-message');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorMessage.textContent = '';
+            videoContainer.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/generate-video', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        prompt: promptInput.value
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                if (data.imageUrl) {
+                    const img = document.createElement('img');
+                    img.src = data.imageUrl;
+                    img.alt = 'Generated image';
+                    videoContainer.appendChild(img);
+                } else {
+                    throw new Error('No image URL received');
+                }
+            } catch (error) {
+                errorMessage.textContent = `Error: ${error.message}`;
+            }
+        });
+    });
+    </script>
+</body>
+</html>

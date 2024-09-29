@@ -100,6 +100,15 @@
             <input type="text" id="education" placeholder="Education">
             <input type="text" id="hobbies" placeholder="Hobbies (comma-separated)">
             <input type="text" id="favoriteColor" placeholder="Favorite Color">
+            <label for="gender">Gender:</label>
+            <select id="gender" required>
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+                <option value="Prefer not to say">Prefer not to say</option>
+            </select>
+            <button type="button" id="randomizeButton">Randomize Fields</button>
             <button type="submit">Add User</button>
         </form>
         <div id="message"></div>
@@ -107,6 +116,19 @@
         <h2>User List</h2>
         <div class="search-container">
             <input type="text" id="searchInput" placeholder="Search users...">
+            <select id="searchField">
+                <option value="all">All Fields</option>
+                <option value="name">Name</option>
+                <option value="email">Email</option>
+                <option value="height">Height</option>
+                <option value="weight">Weight</option>
+                <option value="age">Age</option>
+                <option value="nationality">Nationality</option>
+                <option value="occupation">Occupation</option>
+                <option value="education">Education</option>
+                <option value="hobbies">Hobbies</option>
+                <option value="favoriteColor">Favorite Color</option>
+            </select>
             <button onclick="searchUsers()">Search</button>
         </div>
         <table id="userTable">
@@ -123,6 +145,7 @@
                     <th>Hobbies</th>
                     <th onclick="sortUsers('favoriteColor')">Favorite Color</th>
                     <th onclick="sortUsers('createdAt')">Created At</th>
+                    <th onclick="sortUsers('gender')">Gender</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -137,9 +160,10 @@
         let totalPages = 1;
         let currentSort = { field: 'createdAt', order: 'desc' };
         let searchTerm = '';
+        let limit = 10; // Add this line
 
         // Function to fetch and display users
-        async function fetchUsers(page = 1, limit = 10) {
+        async function fetchUsers(page = 1) {
             try {
                 const response = await fetch(`/api/users?page=${page}&limit=${limit}&sort=${currentSort.field}&order=${currentSort.order}&search=${searchTerm}`);
                 const data = await response.json();
@@ -162,6 +186,7 @@
                             <td data-label="Hobbies">${user.hobbies ? user.hobbies.join(', ') : ''}</td>
                             <td data-label="Favorite Color">${user.favoriteColor || ''}</td>
                             <td data-label="Created At">${new Date(user.createdAt).toLocaleString()}</td>
+                            <td data-label="Gender">${user.gender || ''}</td>
                             <td data-label="Actions">
                                 <button onclick="editUser('${user._id}', this)">Edit</button>
                                 <button onclick="deleteUser('${user._id}')">Delete</button>
@@ -190,6 +215,7 @@
             const education = document.getElementById('education').value;
             const hobbies = document.getElementById('hobbies').value.split(',').map(hobby => hobby.trim());
             const favoriteColor = document.getElementById('favoriteColor').value;
+            const gender = document.getElementById('gender').value;
             
             if (!validateForm()) {
                 return;
@@ -201,7 +227,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ name, email, height, weight, age, nationality, occupation, education, hobbies, favoriteColor }),
+                    body: JSON.stringify({ name, email, height, weight, age, nationality, occupation, education, hobbies, favoriteColor, gender }),
                 });
                 if (response.ok) {
                     document.getElementById('addUserForm').reset();
@@ -265,7 +291,7 @@
         function editUser(id, button) {
             const row = button.closest('tr');
             const cells = row.cells;
-            const fields = ['name', 'email', 'height', 'weight', 'age', 'nationality', 'occupation', 'education', 'hobbies', 'favoriteColor'];
+            const fields = ['name', 'email', 'height', 'weight', 'age', 'nationality', 'occupation', 'education', 'hobbies', 'favoriteColor', 'gender'];
             
             fields.forEach((field, index) => {
                 const value = cells[index].textContent;
@@ -280,7 +306,7 @@
         function saveUser(id, button) {
             const row = button.closest('tr');
             const cells = row.cells;
-            const fields = ['name', 'email', 'height', 'weight', 'age', 'nationality', 'occupation', 'education', 'hobbies', 'favoriteColor'];
+            const fields = ['name', 'email', 'height', 'weight', 'age', 'nationality', 'occupation', 'education', 'hobbies', 'favoriteColor', 'gender'];
             const userData = {};
 
             fields.forEach((field, index) => {
@@ -320,9 +346,22 @@
         }
 
         // Function to search users
-        function searchUsers() {
-            searchTerm = document.getElementById('searchInput').value;
-            fetchUsers();
+        async function searchUsers() {
+            const searchTerm = document.getElementById('searchInput').value;
+            const searchField = document.getElementById('searchField').value;
+            try {
+                const response = await fetch(`/api/users?search=${searchTerm}&field=${searchField}&page=1&limit=${limit}&sort=${currentSort.field}&order=${currentSort.order}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    displayUsers(data.users);
+                    updatePagination(data.currentPage, data.totalPages);
+                } else {
+                    showMessage('Error searching users', 'error');
+                }
+            } catch (error) {
+                console.error('Error searching users:', error);
+                showMessage('Error searching users', 'error');
+            }
         }
 
         // Function to show messages
@@ -362,6 +401,65 @@
             }
 
             return isValid;
+        }
+
+        // Add this function near the end of your script section
+        async function randomizeFields() {
+            try {
+                const response = await fetch('/api/generate-random-user');
+                if (response.ok) {
+                    const userData = await response.json();
+                    document.getElementById('name').value = userData.name || '';
+                    document.getElementById('email').value = userData.email || '';
+                    document.getElementById('height').value = userData.height || '';
+                    document.getElementById('weight').value = userData.weight || '';
+                    document.getElementById('age').value = userData.age || '';
+                    document.getElementById('nationality').value = userData.nationality || '';
+                    document.getElementById('occupation').value = userData.occupation || '';
+                    document.getElementById('education').value = userData.education || '';
+                    document.getElementById('hobbies').value = Array.isArray(userData.hobbies) ? userData.hobbies.join(', ') : '';
+                    document.getElementById('favoriteColor').value = userData.favoriteColor || '';
+                    document.getElementById('gender').value = userData.gender || '';
+                } else {
+                    const errorData = await response.json();
+                    console.error('Error generating random user data:', errorData);
+                    showMessage(`Error generating random user data: ${errorData.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error generating random user data:', error);
+                showMessage('Error generating random user data. Please try again.', 'error');
+            }
+        }
+
+        // Add this event listener after your existing ones
+        document.getElementById('randomizeButton').addEventListener('click', randomizeFields);
+
+        function displayUsers(users) {
+            const tableBody = document.getElementById('userTableBody');
+            tableBody.innerHTML = '';
+            users.forEach(user => {
+                const row = `
+                    <tr>
+                        <td data-label="Name">${user.name}</td>
+                        <td data-label="Email">${user.email}</td>
+                        <td data-label="Height">${user.height || ''}</td>
+                        <td data-label="Weight">${user.weight || ''}</td>
+                        <td data-label="Age">${user.age || ''}</td>
+                        <td data-label="Nationality">${user.nationality || ''}</td>
+                        <td data-label="Occupation">${user.occupation || ''}</td>
+                        <td data-label="Education">${user.education || ''}</td>
+                        <td data-label="Hobbies">${user.hobbies ? user.hobbies.join(', ') : ''}</td>
+                        <td data-label="Favorite Color">${user.favoriteColor || ''}</td>
+                        <td data-label="Created At">${new Date(user.createdAt).toLocaleString()}</td>
+                        <td data-label="Gender">${user.gender || ''}</td>
+                        <td data-label="Actions">
+                            <button onclick="editUser('${user._id}', this)">Edit</button>
+                            <button onclick="deleteUser('${user._id}')">Delete</button>
+                        </td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            });
         }
     </script>
 </body>
