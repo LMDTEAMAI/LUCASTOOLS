@@ -92,6 +92,14 @@
         <form id="addUserForm">
             <input type="text" id="name" placeholder="Name" required>
             <input type="email" id="email" placeholder="Email" required>
+            <input type="number" id="height" placeholder="Height (cm)">
+            <input type="number" id="weight" placeholder="Weight (kg)">
+            <input type="number" id="age" placeholder="Age">
+            <input type="text" id="nationality" placeholder="Nationality">
+            <input type="text" id="occupation" placeholder="Occupation">
+            <input type="text" id="education" placeholder="Education">
+            <input type="text" id="hobbies" placeholder="Hobbies (comma-separated)">
+            <input type="text" id="favoriteColor" placeholder="Favorite Color">
             <button type="submit">Add User</button>
         </form>
         <div id="message"></div>
@@ -106,6 +114,14 @@
                 <tr>
                     <th onclick="sortUsers('name')">Name</th>
                     <th onclick="sortUsers('email')">Email</th>
+                    <th onclick="sortUsers('height')">Height</th>
+                    <th onclick="sortUsers('weight')">Weight</th>
+                    <th onclick="sortUsers('age')">Age</th>
+                    <th onclick="sortUsers('nationality')">Nationality</th>
+                    <th onclick="sortUsers('occupation')">Occupation</th>
+                    <th onclick="sortUsers('education')">Education</th>
+                    <th>Hobbies</th>
+                    <th onclick="sortUsers('favoriteColor')">Favorite Color</th>
                     <th onclick="sortUsers('createdAt')">Created At</th>
                     <th>Actions</th>
                 </tr>
@@ -137,6 +153,14 @@
                         <tr>
                             <td data-label="Name">${user.name}</td>
                             <td data-label="Email">${user.email}</td>
+                            <td data-label="Height">${user.height || ''}</td>
+                            <td data-label="Weight">${user.weight || ''}</td>
+                            <td data-label="Age">${user.age || ''}</td>
+                            <td data-label="Nationality">${user.nationality || ''}</td>
+                            <td data-label="Occupation">${user.occupation || ''}</td>
+                            <td data-label="Education">${user.education || ''}</td>
+                            <td data-label="Hobbies">${user.hobbies ? user.hobbies.join(', ') : ''}</td>
+                            <td data-label="Favorite Color">${user.favoriteColor || ''}</td>
                             <td data-label="Created At">${new Date(user.createdAt).toLocaleString()}</td>
                             <td data-label="Actions">
                                 <button onclick="editUser('${user._id}', this)">Edit</button>
@@ -158,6 +182,14 @@
             event.preventDefault();
             const name = document.getElementById('name').value;
             const email = document.getElementById('email').value;
+            const height = document.getElementById('height').value;
+            const weight = document.getElementById('weight').value;
+            const age = document.getElementById('age').value;
+            const nationality = document.getElementById('nationality').value;
+            const occupation = document.getElementById('occupation').value;
+            const education = document.getElementById('education').value;
+            const hobbies = document.getElementById('hobbies').value.split(',').map(hobby => hobby.trim());
+            const favoriteColor = document.getElementById('favoriteColor').value;
             
             if (!validateForm()) {
                 return;
@@ -169,7 +201,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ name, email }),
+                    body: JSON.stringify({ name, email, height, weight, age, nationality, occupation, education, hobbies, favoriteColor }),
                 });
                 if (response.ok) {
                     document.getElementById('addUserForm').reset();
@@ -186,14 +218,14 @@
         }
 
         // Function to update a user
-        async function updateUser(id, name, email) {
+        async function updateUser(id, userData) {
             try {
                 const response = await fetch(`/api/users/${id}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ name, email }),
+                    body: JSON.stringify(userData),
                 });
                 if (response.ok) {
                     fetchUsers(currentPage);
@@ -232,13 +264,14 @@
         // Function to edit user in-place
         function editUser(id, button) {
             const row = button.closest('tr');
-            const nameCell = row.cells[0];
-            const emailCell = row.cells[1];
-            const name = nameCell.textContent;
-            const email = emailCell.textContent;
+            const cells = row.cells;
+            const fields = ['name', 'email', 'height', 'weight', 'age', 'nationality', 'occupation', 'education', 'hobbies', 'favoriteColor'];
+            
+            fields.forEach((field, index) => {
+                const value = cells[index].textContent;
+                cells[index].innerHTML = `<input type="${field === 'email' ? 'email' : 'text'}" value="${value}">`;
+            });
 
-            nameCell.innerHTML = `<input type="text" value="${name}">`;
-            emailCell.innerHTML = `<input type="email" value="${email}">`;
             button.textContent = 'Save';
             button.onclick = function() { saveUser(id, this); };
         }
@@ -246,9 +279,16 @@
         // Function to save edited user
         function saveUser(id, button) {
             const row = button.closest('tr');
-            const name = row.cells[0].querySelector('input').value;
-            const email = row.cells[1].querySelector('input').value;
-            updateUser(id, name, email);
+            const cells = row.cells;
+            const fields = ['name', 'email', 'height', 'weight', 'age', 'nationality', 'occupation', 'education', 'hobbies', 'favoriteColor'];
+            const userData = {};
+
+            fields.forEach((field, index) => {
+                userData[field] = cells[index].querySelector('input').value;
+            });
+
+            userData.hobbies = userData.hobbies.split(',').map(hobby => hobby.trim());
+            updateUser(id, userData);
             button.textContent = 'Edit';
             button.onclick = function() { editUser(id, this); };
         }

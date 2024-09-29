@@ -3,6 +3,14 @@ import Joi from 'joi';
 const userSchema = Joi.object({
   name: Joi.string().required(),
   email: Joi.string().email().required(),
+  height: Joi.number().min(0).max(300),
+  weight: Joi.number().min(0).max(500),
+  age: Joi.number().min(0).max(150),
+  nationality: Joi.string(),
+  occupation: Joi.string(),
+  education: Joi.string(),
+  hobbies: Joi.array().items(Joi.string()),
+  favoriteColor: Joi.string()
 });
 
 export const validateUser = (req, res, next) => {
