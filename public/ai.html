@@ -5,20 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Interaction</title>
     <link rel="stylesheet" href="styles.css">
-    <script defer src="script.js"></script>
+    <script src="load-nav.js"></script>
 </head>
 <body>
-    <nav>
-        <ul>
-            <li><a href="index.html">Home</a></li>
-            <li><a href="about.html">About</a></li>
-            <li><a href="products.html">Products</a></li>
-            <li><a href="contact.html">Contact</a></li>
-            <li><a href="aispeak.html">AI Speak</a></li>
-            <li><a href="speakai.html">Speak AI</a></li>
-            <li><a href="aiscanner.html">AI Scanner</a></li>
-        </ul>
-    </nav>
     <section>
         <h1>AI Interaction</h1>
         <form id="openai-form">
@@ -28,5 +17,41 @@
         </form>
         <div id="response" style="white-space: pre-wrap;"></div>
     </section>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const form = document.getElementById('openai-form');
+        const userInput = document.getElementById('user-input');
+        const responseDiv = document.getElementById('response');
+
+        if (form) {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                responseDiv.textContent = 'Loading...';
+
+                try {
+                    const response = await fetch('/api/openai', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ message: userInput.value })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Server error: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    responseDiv.textContent = data.result || 'No result received';
+                } catch (error) {
+                    responseDiv.textContent = `Error: ${error.message}`;
+                }
+            });
+        } else {
+            log('Form not found');
+        }
+    });
+    </script>
 </body>
 </html>

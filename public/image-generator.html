@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Generator</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="load-nav.js"></script>
+</head>
+<body>
+    <section>
+        <h1>Image Generator</h1>
+        <form id="image-generator-form">
+            <label for="prompt-input">Enter image description:</label>
+            <input type="text" id="prompt-input" name="prompt-input" required>
+            <button type="submit">Generate Image</button>
+        </form>
+        <div id="image-container">
+            <img id="generated-image" src="" alt="Generated image will appear here" style="display: none; max-width: 100%;">
+        </div>
+        <div id="error-message" style="color: red;"></div>
+    </section>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const form = document.getElementById('image-generator-form');
+        const promptInput = document.getElementById('prompt-input');
+        const generatedImage = document.getElementById('generated-image');
+        const errorMessage = document.getElementById('error-message');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorMessage.textContent = '';
+            generatedImage.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/generate-image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ prompt: promptInput.value })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                if (data.imageUrl) {
+                    generatedImage.src = data.imageUrl;
+                    generatedImage.style.display = 'block';
+                } else {
+                    throw new Error('No image URL received');
+                }
+            } catch (error) {
+                errorMessage.textContent = `Error: ${error.message}`;
+            }
+        });
+    });
+    </script>
+</body>
+</html>
