@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speak AI</title>
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="speakai.js"></script>
+</head>
+<body>
+    <nav>
+        <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="about.html">About</a></li>
+            <li><a href="products.html">Products</a></li>
+            <li><a href="contact.html">Contact</a></li>
+            <li><a href="ai.html">AI</a></li>
+            <li><a href="aispeak.html">AI Speak</a></li>
+            <li><a href="aiscanner.html">AI Scanner</a></li>
+        </ul>
+    </nav>
+    <section>
+        <h1>Speak AI</h1>
+        <form id="speak-form">
+            <label for="text-input">Enter text:</label>
+            <textarea id="text-input" name="text-input" required></textarea>
+            <label for="voice-select">Voice:</label>
+            <select id="voice-select"></select>
+            <label for="rate-select">Rate:</label>
+            <select id="rate-select">
+                <option value="0.5">0.5</option>
+                <option value="1" selected>1</option>
+                <option value="1.5">1.5</option>
+                <option value="2">2</option>
+            </select>
+            <label for="pitch-select">Pitch:</label>
+            <select id="pitch-select">
+                <option value="0.5">0.5</option>
+                <option value="1" selected>1</option>
+                <option value="1.5">1.5</option>
+                <option value="2">2</option>
+            </select>
+            <button type="submit">Speak</button>
+        </form>
+    </section>
+</body>
+</html>
