@@ -1,21 +1,22 @@
 import 'dotenv/config';
 import express from 'express';
 import fetch from 'node-fetch';
-import axios from 'axios'; // Add this line
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+import { chromium } from 'playwright'; // Replace puppeteer with playwright
 import User from './models/User.mjs';
 import connectDB from './db.mjs';
 import { validateUser } from './middleware/validate.mjs';
-import { auth } from './middleware/auth.mjs'; // Add this line
+import { auth } from './middleware/auth.mjs';
 import { errorHandler } from './middleware/errorHandler.mjs';
-import { OpenAI } from 'openai';
-
-// Remove this line as it's not needed anymore
-// console.log('MONGODB_URI:', process.env.MONGODB_URI);
+import OpenAI from 'openai';
+import NewsArticle from './models/NewsArticle.mjs';
+import RSSParser from 'rss-parser';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Initialize OpenAI client
+// Initialize OpenAI client directly with the API key
 const openai = new OpenAI(process.env.OPENAI_API_KEY);
 
 // Serve static files from the "public" directory
@@ -23,12 +24,86 @@ app.use(express.static('public'));
 
 app.use(express.json());
 
-// Existing chat completion endpoint
-app.post('/api/openai', async (req, res) => {
+// Route to fetch, rewrite, and store news articles
+app.get('/api/fetch-news', async (req, res) => {
     try {
-        if (!req.body.message) {
-            return res.status(400).json({ error: "Message content is required" });
+        const rssParser = new RSSParser();
+        const rssUrl = 'https://www.news.com.au/content-feeds/latest-news-world/'; // Replace with your RSS feed URL
+
+        // Log the RSS URL being fetched
+        console.log(`Fetching RSS feed from URL: ${rssUrl}`);
+
+        const feed = await rssParser.parseURL(rssUrl);
+
+        // Check if the feed has items
+        if (!feed.items || feed.items.length === 0) {
+            throw new Error('No articles found in the RSS feed.');
         }
+
+        // Assume you want to rewrite the first article
+        const firstArticle = feed.items[0];
+        const articleUrl = firstArticle.link;
+
+        // Use Playwright to fetch the full article content
+        const browser = await chromium.launch({ headless: false });
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3');
+        await page.goto(articleUrl, { waitUntil: 'networkidle' });
+
+        // Wait for the article content to load
+        await page.waitForSelector('.article-content');
+
+        // Extract the full article content
+        const articleHtml = await page.content();
+        await browser.close();
+
+        // Log the fetched HTML content for debugging
+        console.log(`Fetched HTML content: ${articleHtml}`);
+
+        const $ = cheerio.load(articleHtml);
+        const fullArticleContent = $('.article-content').text(); // Adjust the selector as needed
+
+        // Log the extracted full article content
+        console.log(`Extracted full article content: ${fullArticleContent}`);
+
+        if (!fullArticleContent) {
+            throw new Error('Failed to extract full article content.');
+        }
+
+        const rewritePrompt = `Rewrite the following news article in the style of Macho Man Randy Savage:\n\n${fullArticleContent}`;
+
+        // Use axios to call the OpenAI API directly with the correct endpoint
+        const openaiResponse = await axios.post('https://api.openai.com/v1/chat/completions', {
+            model: "gpt-3.5-turbo",
+            messages: [{ role: "user", content: rewritePrompt }],
+            max_tokens: 1024
+        }, {
+            headers: {
+                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const rewrittenArticle = openaiResponse.data.choices[0].message.content;
+
+        // Store the original and rewritten articles in MongoDB
+        await NewsArticle.create({
+            title: firstArticle.title,
+            description: fullArticleContent,
+            rewritten: rewrittenArticle
+        });
+
+        res.status(200).json({ original: fullArticleContent, rewritten: rewrittenArticle });
+    } catch (error) {
+        console.error('Error fetching and rewriting news articles:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Route to generate a random GPT prompt
+app.get('/api/generate-prompt', async (req, res) => {
+    try {
+        const prompt = `Generate a random and creative GPT prompt that could be used for a variety of tasks, such as storytelling, problem-solving, or generating creative content. The prompt should be engaging, open-ended, and suitable for a wide range of audiences.`;
 
         const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -38,7 +113,9 @@ app.post('/api/openai', async (req, res) => {
             },
             body: JSON.stringify({
                 model: "gpt-3.5-turbo",
-                messages: [{ role: "user", content: req.body.message }],
+                messages: [{ role: "user", content: prompt }],
+                temperature: 1.0,
+                max_tokens: 100,
             }),
         });
 
@@ -47,11 +124,35 @@ app.post('/api/openai', async (req, res) => {
         }
 
         const openaiData = await openaiResponse.json();
-        res.json({ result: openaiData.choices[0].message.content });
+        const generatedPrompt = openaiData.choices[0].message.content.trim();
+
+        res.json({ prompt: generatedPrompt });
     } catch (error) {
-        console.error('Server error:', error);
-        res.status(500).json({ error: error.message });
+        console.error('Error generating random GPT prompt:', error);
+        res.status(500).json({ error: 'Failed to generate random GPT prompt', details: error.message });
     }
+});
+
+// Connect to MongoDB before starting the server
+connectDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error('Failed to connect to MongoDB:', error);
+    process.exit(1);
+  });
+
+// Add this route to serve the database.html file
+app.get('/database', (req, res) => {
+    res.sendFile('database.html', { root: './public' });
+});
+
+// Protected route example
+app.get('/api/protected', auth, (req, res) => {
+    res.json({ message: 'This is a protected route' });
 });
 
 // New image generation endpoint
@@ -180,30 +281,70 @@ app.delete('/api/users/:id', async (req, res) => {
     }
 });
 
-// Connect to MongoDB before starting the server
-connectDB()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  })
-  .catch((error) => {
-    console.error('Failed to connect to MongoDB:', error);
-    process.exit(1);
-  });
+// Existing chat completion endpoint
+app.post('/api/openai', async (req, res) => {
+    try {
+        if (!req.body.message) {
+            return res.status(400).json({ error: "Message content is required" });
+        }
 
-// Add this route to serve the database.html file
-app.get('/database', (req, res) => {
-    res.sendFile('database.html', { root: './public' });
+        const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: "gpt-3.5-turbo",
+                messages: [{ role: "user", content: req.body.message }],
+            }),
+        });
+
+        if (!openaiResponse.ok) {
+            throw new Error(`OpenAI API error: ${openaiResponse.statusText}`);
+        }
+
+        const openaiData = await openaiResponse.json();
+        res.json({ result: openaiData.choices[0].message.content });
+    } catch (error) {
+        console.error('Server error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
-// Protected route example
-app.get('/api/protected', auth, (req, res) => {
-    res.json({ message: 'This is a protected route' });
+// Add this route to serve the user-gallery.html file
+app.get('/user-gallery', (req, res) => {
+    res.sendFile('user-gallery.html', { root: './public' });
 });
 
-// Move the error handler middleware to the very end
-app.use(errorHandler);
+// Replace the video generation endpoint with an image generation endpoint
+app.post('/api/generate-video', async (req, res) => {
+    try {
+        const { prompt } = req.body;
+        
+        if (!prompt) {
+            return res.status(400).json({ error: "Prompt is required" });
+        }
+
+        const response = await openai.images.generate({
+            model: "dall-e-3",
+            prompt: prompt,
+            n: 1,
+            size: "1024x1024"
+        });
+
+        const imageUrl = response.data[0].url;
+        res.json({ imageUrl });
+    } catch (error) {
+        console.error('Error generating image:', error.response?.data || error.message);
+        res.status(500).json({ error: 'Failed to generate image' });
+    }
+});
+
+// Add this route to serve the video-generator.html file
+app.get('/video-generator', (req, res) => {
+    res.sendFile('video-generator.html', { root: './public' });
+});
 
 // Add this new endpoint
 app.get('/api/generate-random-user', async (req, res) => {
@@ -306,36 +447,5 @@ app.get('/api/generate-random-user', async (req, res) => {
     }
 });
 
-// Add this route to serve the user-gallery.html file
-app.get('/user-gallery', (req, res) => {
-    res.sendFile('user-gallery.html', { root: './public' });
-});
-
-// Replace the video generation endpoint with an image generation endpoint
-app.post('/api/generate-video', async (req, res) => {
-    try {
-        const { prompt } = req.body;
-        
-        if (!prompt) {
-            return res.status(400).json({ error: "Prompt is required" });
-        }
-
-        const response = await openai.images.generate({
-            model: "dall-e-3",
-            prompt: prompt,
-            n: 1,
-            size: "1024x1024"
-        });
-
-        const imageUrl = response.data[0].url;
-        res.json({ imageUrl });
-    } catch (error) {
-        console.error('Error generating image:', error.response?.data || error.message);
-        res.status(500).json({ error: 'Failed to generate image' });
-    }
-});
-
-// Add this route to serve the video-generator.html file
-app.get('/video-generator', (req, res) => {
-    res.sendFile('video-generator.html', { root: './public' });
-});
+// Move the error handler middleware to the very end
+app.use(errorHandler);

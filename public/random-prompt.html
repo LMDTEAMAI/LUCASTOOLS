@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random GPT Prompt</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="load-nav.js"></script>
+</head>
+<body>
+    <section>
+        <h1>Random GPT Prompt</h1>
+        <button id="generatePromptButton">Generate Random Prompt</button>
+        <div id="prompt"></div>
+    </section>
+
+    <script>
+        document.getElementById('generatePromptButton').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/generate-prompt');
+                if (!response.ok) {
+                    throw new Error('Failed to generate prompt.');
+                }
+                const data = await response.json();
+                document.getElementById('prompt').textContent = `Prompt: ${data.prompt}`;
+            } catch (error) {
+                console.error('Error generating prompt:', error);
+                document.getElementById('prompt').textContent = `Error: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>
